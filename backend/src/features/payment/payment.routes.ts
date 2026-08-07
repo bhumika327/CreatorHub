@@ -1,19 +1,24 @@
 import { Router } from 'express';
+import { PaymentController } from './payment.controller';
+import { authenticateToken } from '../auth/auth.middleware';
 
 const router = Router();
 
 /**
  * @openapi
- * /api/payment:
+ * /api/payment/ledger:
  *   get:
- *     summary: View payment transactions
+ *     summary: Retrieve transaction ledger history
  *     tags: [Payment]
+ *     security:
+ *       - bearerAuth: []
  *     responses:
  *       200:
- *         description: Success
+ *         description: Successfully fetched user transaction list
+ *       401:
+ *         description: Unauthorized
  */
-router.get('/', (req, res) => {
-  res.json({ success: true, message: "Payment endpoint placeholder" });
-});
+router.get('/ledger', authenticateToken, PaymentController.getLedger);
 
 export default router;
+export { router };
