@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { UserProfileController } from './user-profile.controller';
 import { authenticateToken } from '../auth/auth.middleware';
+import { requirePermission } from '../rbac/rbac.middleware';
 
 const router = Router();
 
@@ -165,6 +166,22 @@ router.delete('/services/:serviceId', authenticateToken, UserProfileController.d
  *         description: Forbidden
  */
 router.put('/availability', authenticateToken, UserProfileController.setAvailability);
+
+/**
+ * @openapi
+ * /api/user-profile/ai-suggestions:
+ *   get:
+ *     summary: Retrieve Gemini AI suggestions to improve Creator profile bio and tags (Creators only)
+ *     tags: [Profile]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Successfully fetched AI optimization copy
+ *       403:
+ *         description: Forbidden
+ */
+router.get('/ai-suggestions', authenticateToken, requirePermission('ai:suggest'), UserProfileController.getAiSuggestions);
 
 export default router;
 export { router };

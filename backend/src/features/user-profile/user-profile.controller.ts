@@ -6,6 +6,7 @@ import {
   CreateAvailabilitySchema
 } from './user-profile.dto';
 import { UserProfileService } from './user-profile.service';
+import { AiService } from '../ai/ai.service';
 import { z } from 'zod';
 
 export class UserProfileController {
@@ -126,6 +127,28 @@ export class UserProfileController {
         success: true,
         message: 'Availability calendar updated successfully',
         data: list
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  public static async getAiSuggestions(req: Request, res: Response, next: NextFunction) {
+    try {
+      const user = req.user;
+      if (!user || user.role !== 'CREATOR') {
+        return res.status(403).json({ success: false, message: 'Only Creators can request AI suggestions' });
+      }
+
+      const profile = await UserProfileService.getCreatorProfile(user.userId);
+      const suggestions = await AiService.getProfileSuggestions(
+        profile.bio || '',
+        profile.skills
+      );
+
+      res.status(200).json({
+        success: true,
+        data: { suggestions }
       });
     } catch (error) {
       next(error);
