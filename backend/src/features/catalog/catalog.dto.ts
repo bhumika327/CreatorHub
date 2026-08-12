@@ -18,7 +18,9 @@ export const BrowseQuerySchema = z.object({
   city: z.string().optional(),
   country: z.string().optional(),
   minPrice: z.preprocess((val) => (val ? parseFloat(val as string) : undefined), z.number().optional()),
-  maxPrice: z.preprocess((val) => (val ? parseFloat(val as string) : undefined), z.number().optional())
+  maxPrice: z.preprocess((val) => (val ? parseFloat(val as string) : undefined), z.number().optional()),
+  page: z.preprocess((val) => (val ? parseInt(val as string, 10) : undefined), z.number().positive().optional()),
+  limit: z.preprocess((val) => (val ? parseInt(val as string, 10) : undefined), z.number().positive().optional())
 });
 
 export type PostRequirementInput = z.infer<typeof PostRequirementSchema>;

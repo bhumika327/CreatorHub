@@ -119,22 +119,41 @@ export class CatalogService {
       };
     }
 
-    return prisma.profileCreator.findMany({
-      where: whereClause,
-      include: {
-        services: true,
-        user: {
-          select: {
-            id: true,
-            email: true,
-            reviewsReceived: {
-              select: {
-                rating: true
+    const page = filters.page || 1;
+    const limit = filters.limit || 10;
+    const skip = (page - 1) * limit;
+
+    const [creators, total] = await Promise.all([
+      prisma.profileCreator.findMany({
+        where: whereClause,
+        include: {
+          services: true,
+          user: {
+            select: {
+              id: true,
+              email: true,
+              reviewsReceived: {
+                select: {
+                  rating: true
+                }
               }
             }
           }
-        }
-      }
-    });
+        },
+        skip,
+        take: limit,
+        orderBy: { createdAt: 'desc' }
+      }),
+      prisma.profileCreator.count({
+        where: whereClause
+      })
+    ]);
+
+    return {
+      creators,
+      total,
+      page,
+      limit
+    };
   }
 }
