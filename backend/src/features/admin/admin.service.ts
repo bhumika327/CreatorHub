@@ -142,4 +142,61 @@ export class AdminService {
       }
     });
   }
+
+  public static async getUsers() {
+    return prisma.authUser.findMany({
+      select: {
+        id: true,
+        email: true,
+        role: true,
+        createdAt: true
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+  }
+
+  public static async updateUserRole(userId: string, newRole: any) {
+    const user = await prisma.authUser.findUnique({
+      where: { id: userId }
+    });
+
+    if (!user) {
+      throw { status: 404, message: 'User not found' };
+    }
+
+    return prisma.$transaction(async (tx) => {
+      // 1. Update user role
+      const updatedUser = await tx.authUser.update({
+        where: { id: userId },
+        data: { role: newRole },
+        select: { id: true, email: true, role: true }
+      });
+
+      // 2. Ensure matching profile exists if promoting to creator or customer (if not exists already)
+      if (newRole === 'CUSTOMER') {
+        const profile = await tx.profileCustomer.findUnique({ where: { userId } });
+        if (!profile) {
+          await tx.profileCustomer.create({
+            data: {
+              userId,
+              fullName: 'Promoted Customer'
+            }
+          });
+        }
+      } else if (newRole === 'CREATOR') {
+        const profile = await tx.profileCreator.findUnique({ where: { userId } });
+        if (!profile) {
+          await tx.profileCreator.create({
+            data: {
+              userId,
+              displayName: 'Promoted Creator',
+              isApproved: true // auto approve on promotion by admin
+            }
+          });
+        }
+      }
+
+      return updatedUser;
+    });
+  }
 }

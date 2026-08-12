@@ -104,4 +104,38 @@ export class AdminController {
       next(error);
     }
   }
+
+  public static async getUsers(req: Request, res: Response, next: NextFunction) {
+    try {
+      const user = req.user;
+      if (!user || user.role !== 'MANAGER') {
+        return res.status(403).json({ success: false, message: 'Only managers can view users' });
+      }
+
+      const data = await AdminService.getUsers();
+      res.status(200).json({ success: true, data });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  public static async updateUserRole(req: Request, res: Response, next: NextFunction) {
+    try {
+      const user = req.user;
+      if (!user || user.role !== 'MANAGER') {
+        return res.status(403).json({ success: false, message: 'Only managers can change user roles' });
+      }
+
+      const userId = req.params.userId;
+      const { role } = req.body;
+      if (!role || !['CUSTOMER', 'CREATOR', 'MANAGER'].includes(role)) {
+        return res.status(400).json({ success: false, message: 'Valid role (CUSTOMER, CREATOR, or MANAGER) is required' });
+      }
+
+      const updated = await AdminService.updateUserRole(userId, role);
+      res.status(200).json({ success: true, message: 'User role updated successfully', data: updated });
+    } catch (error) {
+      next(error);
+    }
+  }
 }

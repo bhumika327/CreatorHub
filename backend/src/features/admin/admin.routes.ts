@@ -131,5 +131,55 @@ router.get('/disputes', authenticateToken, AdminController.getDisputes);
  */
 router.get('/verification-queue', authenticateToken, AdminController.getVerificationQueue);
 
+/**
+ * @openapi
+ * /api/admin/users:
+ *   get:
+ *     summary: Retrieve list of all registered users (Managers only)
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Users list retrieved successfully
+ *       403:
+ *         description: Forbidden
+ */
+router.get('/users', authenticateToken, AdminController.getUsers);
+
+/**
+ * @openapi
+ * /api/admin/users/{userId}/role:
+ *   put:
+ *     summary: Assign or update a user's system role (Managers only)
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - role
+ *             properties:
+ *               role:
+ *                 type: string
+ *                 enum: [CUSTOMER, CREATOR, MANAGER]
+ *     responses:
+ *       200:
+ *         description: User role updated successfully
+ *       403:
+ *         description: Forbidden
+ */
+router.put('/users/:userId/role', authenticateToken, AdminController.updateUserRole);
+
 export default router;
 export { router };
