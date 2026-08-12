@@ -17,9 +17,30 @@ export class PaymentService {
   }
 
   public static async getLedger(userId: string) {
-    return prisma.paymentTransactionLedger.findMany({
+    const transactions = await prisma.paymentTransactionLedger.findMany({
       where: { userId },
       orderBy: { createdAt: 'desc' }
     });
+
+    const activeEngagements = await prisma.engagement.findMany({
+      where: {
+        OR: [
+          { customerId: userId },
+          { creatorId: userId }
+        ],
+        status: {
+          in: ['ESCROW_HOLD', 'DELIVERED', 'DISPUTED']
+        }
+      }
+    });
+
+    const balance = transactions.reduce((sum, tx) => sum + tx.amount, 0);
+    const escrowBalance = activeEngagements.reduce((sum, eng) => sum + eng.amount, 0);
+
+    return {
+      balance,
+      escrowBalance,
+      transactions
+    };
   }
 }

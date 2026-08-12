@@ -194,7 +194,19 @@ export class EngagementService {
     if (role === UserRole.CREATOR) {
       return prisma.engagementProposal.findMany({
         where: { creatorId: userId },
-        include: { requirement: true },
+        include: {
+          requirement: {
+            include: {
+              customer: {
+                select: {
+                  id: true,
+                  email: true,
+                  customerProfile: true
+                }
+              }
+            }
+          }
+        },
         orderBy: { createdAt: 'desc' }
       });
     } else {
