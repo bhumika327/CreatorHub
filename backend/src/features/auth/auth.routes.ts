@@ -134,5 +134,24 @@ router.post('/refresh', AuthController.refresh);
  */
 router.post('/logout', authenticateToken, AuthController.logout);
 
+/**
+ * @openapi
+ * /api/auth/me:
+ *   get:
+ *     summary: Get current authenticated user
+ *     description: Retrieves the account and profile details of the logged in user.
+ *     tags: [Authentication]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Current user details retrieved successfully
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: User not found
+ */
+router.get('/me', authenticateToken, AuthController.getMe);
+
 export default router;
 export { router };

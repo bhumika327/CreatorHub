@@ -76,6 +76,10 @@ export class AuthService {
       throw { status: 401, message: 'Invalid email or password' };
     }
 
+    if (user.status !== 'ACTIVE') {
+      throw { status: 403, message: `Access denied: Account status is ${user.status.toLowerCase()}` };
+    }
+
     const passwordMatch = await bcrypt.compare(input.password, user.passwordHash);
     if (!passwordMatch) {
       throw { status: 401, message: 'Invalid email or password' };
@@ -124,6 +128,10 @@ export class AuthService {
 
     if (!user) {
       throw { status: 401, message: 'User not found' };
+    }
+
+    if (user.status !== 'ACTIVE') {
+      throw { status: 403, message: `Access denied: Account status is ${user.status.toLowerCase()}` };
     }
 
     const tokens = await this.generateTokens(user.id, user.role);

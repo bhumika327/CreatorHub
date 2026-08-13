@@ -181,5 +181,131 @@ router.get('/users', authenticateToken, AdminController.getUsers);
  */
 router.put('/users/:userId/role', authenticateToken, AdminController.updateUserRole);
 
+/**
+ * @openapi
+ * /api/admin/users/{userId}/suspend:
+ *   post:
+ *     summary: Suspend or deactivate a user account (Managers only)
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - status
+ *             properties:
+ *               status:
+ *                 type: string
+ *                 enum: [ACTIVE, SUSPENDED, DEACTIVATED]
+ *     responses:
+ *       200:
+ *         description: User status updated successfully
+ *       403:
+ *         description: Forbidden
+ */
+router.post('/users/:userId/suspend', authenticateToken, AdminController.suspendUser);
+
+/**
+ * @openapi
+ * /api/admin/creators/{creatorId}/verify:
+ *   post:
+ *     summary: Verify/review a content creator profile lifecycle (Managers only)
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: creatorId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - action
+ *             properties:
+ *               action:
+ *                 type: string
+ *                 enum: [APPROVE, REJECT, SUSPEND, UNDER_REVIEW]
+ *               rejectionReason:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Creator verification status updated
+ *       400:
+ *         description: Rejection reason required for REJECT action
+ *       403:
+ *         description: Forbidden
+ */
+router.post('/creators/:creatorId/verify', authenticateToken, AdminController.reviewCreator);
+
+/**
+ * @openapi
+ * /api/admin/businesses/{customerId}/verify:
+ *   post:
+ *     summary: Verify/review a customer business profile lifecycle (Managers only)
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: customerId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - action
+ *             properties:
+ *               action:
+ *                 type: string
+ *                 enum: [APPROVE, REJECT, SUSPEND, UNDER_REVIEW]
+ *               rejectionReason:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Business verification status updated
+ *       400:
+ *         description: Rejection reason required for REJECT action
+ *       403:
+ *         description: Forbidden
+ */
+router.post('/businesses/:customerId/verify', authenticateToken, AdminController.reviewBusiness);
+
+/**
+ * @openapi
+ * /api/admin/businesses/verification-queue:
+ *   get:
+ *     summary: Retrieve pending business verification list queue (Managers only)
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Retrieved pending business verification queue
+ *       403:
+ *         description: Forbidden
+ */
+router.get('/businesses/verification-queue', authenticateToken, AdminController.getBusinessVerificationQueue);
+
 export default router;
 export { router };

@@ -1,7 +1,21 @@
 import { Request, Response, NextFunction } from 'express';
-import { RegisterSchema, LoginSchema, RefreshSchema } from './auth.dto';
+import { RegisterSchema, LoginSchema } from './auth.dto';
 import { AuthService } from './auth.service';
 import { logAudit } from '../../common/utils/auditLogger';
+import { prisma } from '../../prisma/client';
+
+const getRefreshTokenFromCookie = (req: Request): string | null => {
+  const cookieHeader = req.headers.cookie;
+  if (!cookieHeader) return null;
+  const cookies = cookieHeader.split(';');
+  for (const cookie of cookies) {
+    const [key, value] = cookie.trim().split('=');
+    if (key === 'refreshToken') {
+      return decodeURIComponent(value);
+    }
+  }
+  return null;
+};
 
 export class AuthController {
   public static async register(req: Request, res: Response, next: NextFunction) {
@@ -46,9 +60,20 @@ export class AuthController {
         status: 'SUCCESS'
       });
 
+      // Set refresh token in httpOnly secure cookie
+      res.cookie('refreshToken', result.refreshToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict',
+        maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+      });
+
       res.status(200).json({
         success: true,
-        data: result
+        data: {
+          user: result.user,
+          accessToken: result.accessToken
+        }
       });
     } catch (error: any) {
       // Log failed login attempt to file audit log
@@ -66,16 +91,27 @@ export class AuthController {
 
   public static async refresh(req: Request, res: Response, next: NextFunction) {
     try {
-      const parseResult = RefreshSchema.safeParse(req.body);
-      if (!parseResult.success) {
-        return res.status(400).json({ success: false, errors: parseResult.error.format() });
+      const refreshToken = getRefreshTokenFromCookie(req);
+      if (!refreshToken) {
+        return res.status(401).json({ success: false, message: 'Refresh token cookie required' });
       }
 
-      const result = await AuthService.refreshTokens(parseResult.data.refreshToken);
+      const result = await AuthService.refreshTokens(refreshToken);
+
+      // Set new rotated refresh token in httpOnly cookie
+      res.cookie('refreshToken', result.refreshToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict',
+        maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+      });
 
       res.status(200).json({
         success: true,
-        data: result
+        data: {
+          user: result.user,
+          accessToken: result.accessToken
+        }
       });
     } catch (error) {
       next(error);
@@ -88,9 +124,50 @@ export class AuthController {
       if (userId) {
         await AuthService.logout(userId);
       }
+
+      // Clear the refresh token cookie
+      res.clearCookie('refreshToken', {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict'
+      });
+
       res.status(200).json({
         success: true,
         message: 'Logged out successfully'
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  public static async getMe(req: Request, res: Response, next: NextFunction) {
+    try {
+      const userId = req.user?.userId;
+      if (!userId) {
+        return res.status(401).json({ success: false, message: 'Unauthorized' });
+      }
+
+      const user = await prisma.authUser.findUnique({
+        where: { id: userId },
+        select: {
+          id: true,
+          email: true,
+          role: true,
+          status: true,
+          createdAt: true,
+          customerProfile: true,
+          creatorProfile: true
+        }
+      });
+
+      if (!user) {
+        return res.status(404).json({ success: false, message: 'User not found' });
+      }
+
+      res.status(200).json({
+        success: true,
+        data: user
       });
     } catch (error) {
       next(error);

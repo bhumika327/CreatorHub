@@ -17,11 +17,18 @@ enum UserRole {
   MANAGER
 }
 
+enum AccountStatus {
+  ACTIVE
+  SUSPENDED
+  DEACTIVATED
+}
+
 model AuthUser {
   id           String      @id @default(uuid())
   email        String      @unique
   passwordHash String
   role         UserRole    @default(CUSTOMER)
+  status       AccountStatus @default(ACTIVE)
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
   
@@ -37,6 +44,8 @@ model AuthUser {
   disputesInitiated     EngagementDispute[]  @relation("DisputeInitiator")
   proposals             EngagementProposal[]
   requirements          CatalogRequirement[]
+  bookmarks             CreatorBookmark[]
+  notifications         Notification[]
 }
 
 model AuthRefreshToken {
@@ -81,6 +90,17 @@ model ProfileCustomer {
   country     String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
+  // Relations
+  businessVerification BusinessVerification?
+}
+
+enum CreatorVerificationStatus {
+  PENDING
+  UNDER_REVIEW
+  VERIFIED
+  REJECTED
+  SUSPENDED
 }
 
 model ProfileCreator {
@@ -92,10 +112,18 @@ model ProfileCreator {
   skills         String[]
   avatarUrl      String?
   isApproved     Boolean                @default(false)
+  verificationStatus CreatorVerificationStatus @default(PENDING)
+  submittedAt    DateTime?
+  reviewedAt     DateTime?
+  reviewedBy     String?
+  rejectionReason String?
+  verificationDocs Json?                  // Cloudinary secure private JSON representation
   city           String?
   country        String?
   services       ProfileCreatorService[]
   availabilities ProfileAvailability[]
+  portfolioItems CreatorPortfolioItem[]
+  bookmarks      CreatorBookmark[]
   createdAt      DateTime               @default(now())
   updatedAt      DateTime               @updatedAt
 }
@@ -110,6 +138,8 @@ model ProfileCreatorService {
   deliveryDays Int
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
+  packages    CreatorServicePackage[]
 }
 
 model ProfileAvailability {
@@ -124,6 +154,19 @@ model ProfileAvailability {
 // CATALOG & REQUIREMENT MODULE
 // ==========================================
 
+enum RequirementStatus {
+  DRAFT
+  PUBLISHED
+  PROPOSALS_RECEIVED
+  SHORTLISTED
+  HIRED
+  IN_PROGRESS
+  DELIVERED
+  COMPLETED
+  CANCELLED
+  DISPUTED
+}
+
 model CatalogRequirement {
   id          String   @id @default(uuid())
   customerId  String
@@ -133,6 +176,7 @@ model CatalogRequirement {
   budget      Float
   category    String
   tags        String[]
+  status      RequirementStatus @default(PUBLISHED)
   city        String?
   country     String?
   createdAt   DateTime @default(now())
@@ -147,9 +191,12 @@ model CatalogRequirement {
 // ==========================================
 
 enum ProposalStatus {
-  PENDING
+  SUBMITTED
+  VIEWED
+  SHORTLISTED
   ACCEPTED
   REJECTED
+  WITHDRAWN
 }
 
 model EngagementProposal {
@@ -161,16 +208,23 @@ model EngagementProposal {
   coverLetter   String
   bidAmount     Float
   deliveryDays  Int
-  status        ProposalStatus     @default(PENDING)
+  status        ProposalStatus     @default(SUBMITTED)
   createdAt     DateTime           @default(now())
   updatedAt     DateTime           @updatedAt
+
+  history       EngagementProposalHistory[]
+  engagement    Engagement?
 }
 
 enum EngagementStatus {
-  ESCROW_HOLD
+  PENDING
+  ACTIVE
+  IN_PROGRESS
   DELIVERED
   COMPLETED
+  CANCELLED
   DISPUTED
+  ESCROW_HOLD
   REFUNDED
 }
 
@@ -181,12 +235,17 @@ model Engagement {
   creatorId     String
   customerId    String
   amount        Float
-  status        EngagementStatus   @default(ESCROW_HOLD)
+  status        EngagementStatus   @default(PENDING)
+  startDate     DateTime?
+  deadline      DateTime?
+  proposalId    String?            @unique
+  proposal      EngagementProposal? @relation(fields: [proposalId], references: [id], onDelete: SetNull)
   createdAt     DateTime           @default(now())
   updatedAt     DateTime           @updatedAt
 
   disputes      EngagementDispute[]
   chatRooms     ChatRoom[]
+  milestones    EngagementMilestone[]
 }
 
 enum DisputeStatus {
@@ -265,4 +324,149 @@ model Review {
   rating     Int      // 1 to 5
   comment    String
   createdAt  DateTime @default(now())
+}
+
+// ==========================================
+// NEW BUSINESS & CREATOR LIFE CYCLES + SUBMODELS
+// ==========================================
+
+enum BusinessVerificationStatus {
+  PENDING
+  UNDER_REVIEW
+  VERIFIED
+  REJECTED
+  SUSPENDED
+}
+
+enum PackageType {
+  BASIC
+  STANDARD
+  PREMIUM
+}
+
+model BusinessVerification {
+  id              String                     @id @default(uuid())
+  customerId      String                     @unique
+  customer        ProfileCustomer            @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  companyName     String
+  registrationNum String
+  documents       Json                       // Cloudinary secure private JSON representation
+  status          BusinessVerificationStatus @default(PENDING)
+  submittedAt     DateTime                   @default(now())
+  reviewedAt      DateTime?
+  reviewedBy      String?
+  rejectionReason String?
+  createdAt       DateTime                   @default(now())
+  updatedAt       DateTime                   @updatedAt
+
+  @@index([customerId])
+  @@index([status])
+}
+
+model CreatorPortfolioItem {
+  id           String         @id @default(uuid())
+  creatorId    String
+  creator      ProfileCreator @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  title        String
+  description  String?
+  mediaUrl     String?
+  mediaType    String?
+  thumbnailUrl String?
+  projectUrl   String?
+  skills       String[]
+  order        Int            @default(0)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  @@index([creatorId])
+  @@index([order])
+}
+
+model CreatorBookmark {
+  id         String         @id @default(uuid())
+  customerId String
+  customer   AuthUser       @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  creatorId  String
+  creator    ProfileCreator @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  createdAt  DateTime       @default(now())
+
+  @@unique([customerId, creatorId])
+  @@index([customerId])
+  @@index([creatorId])
+}
+
+model CreatorServicePackage {
+  id           String                @id @default(uuid())
+  serviceId    String
+  service      ProfileCreatorService @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  type         PackageType
+  name         String
+  description  String
+  price        Decimal               @db.Decimal(10, 2)
+  deliveryDays Int
+  revisions    Int                   @default(3)
+  features     String[]
+  addons       Json?
+  isActive     Boolean               @default(true)
+  createdAt    DateTime              @default(now())
+  updatedAt    DateTime              @updatedAt
+
+  @@unique([serviceId, type])
+  @@index([serviceId])
+}
+
+enum MilestoneStatus {
+  PENDING
+  IN_PROGRESS
+  SUBMITTED
+  APPROVED
+  REJECTED
+  CANCELLED
+  DISPUTED
+}
+
+model EngagementMilestone {
+  id             String          @id @default(uuid())
+  engagementId   String
+  engagement     Engagement      @relation(fields: [engagementId], references: [id], onDelete: Cascade)
+  title          String
+  description    String
+  amount         Decimal         @db.Decimal(10, 2)
+  dueDate        DateTime?
+  status         MilestoneStatus @default(PENDING)
+  deliverableUrl String?
+  deliverableNotes String?
+  submittedAt    DateTime?
+  approvedAt     DateTime?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  @@index([engagementId])
+  @@index([status])
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  user      AuthUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  message   String
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([isRead])
+}
+
+model EngagementProposalHistory {
+  id          String             @id @default(uuid())
+  proposalId  String
+  proposal    EngagementProposal @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+  fromStatus  ProposalStatus?
+  toStatus    ProposalStatus
+  changedById String?
+  comment     String?
+  createdAt   DateTime           @default(now())
+
+  @@index([proposalId])
 }

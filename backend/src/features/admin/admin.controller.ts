@@ -57,6 +57,78 @@ export class AdminController {
     }
   }
 
+  public static async suspendUser(req: Request, res: Response, next: NextFunction) {
+    try {
+      const user = req.user;
+      if (!user || user.role !== 'MANAGER') {
+        return res.status(403).json({ success: false, message: 'Only managers can suspend users' });
+      }
+
+      const userId = req.params.userId;
+      const { status } = req.body;
+      if (!status || !['ACTIVE', 'SUSPENDED', 'DEACTIVATED'].includes(status)) {
+        return res.status(400).json({ success: false, message: 'Valid status (ACTIVE, SUSPENDED, or DEACTIVATED) is required' });
+      }
+
+      const updated = await AdminService.suspendUser(userId, status);
+      res.status(200).json({
+        success: true,
+        message: `User status updated to ${status} successfully`,
+        data: updated
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  public static async reviewCreator(req: Request, res: Response, next: NextFunction) {
+    try {
+      const user = req.user;
+      if (!user || user.role !== 'MANAGER') {
+        return res.status(403).json({ success: false, message: 'Only managers can verify creator profiles' });
+      }
+
+      const creatorId = req.params.creatorId;
+      const { action, rejectionReason } = req.body;
+      if (!action || !['APPROVE', 'REJECT', 'SUSPEND', 'UNDER_REVIEW'].includes(action)) {
+        return res.status(400).json({ success: false, message: 'Valid action (APPROVE, REJECT, SUSPEND, or UNDER_REVIEW) is required' });
+      }
+
+      const updated = await AdminService.reviewCreator(creatorId, action, user.userId, rejectionReason);
+      res.status(200).json({
+        success: true,
+        message: `Creator profile status updated successfully via action ${action}`,
+        data: updated
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  public static async reviewBusiness(req: Request, res: Response, next: NextFunction) {
+    try {
+      const user = req.user;
+      if (!user || user.role !== 'MANAGER') {
+        return res.status(403).json({ success: false, message: 'Only managers can verify customer businesses' });
+      }
+
+      const customerId = req.params.customerId;
+      const { action, rejectionReason } = req.body;
+      if (!action || !['APPROVE', 'REJECT', 'SUSPEND', 'UNDER_REVIEW'].includes(action)) {
+        return res.status(400).json({ success: false, message: 'Valid action (APPROVE, REJECT, SUSPEND, or UNDER_REVIEW) is required' });
+      }
+
+      const updated = await AdminService.reviewBusiness(customerId, action, user.userId, rejectionReason);
+      res.status(200).json({
+        success: true,
+        message: `Customer business status updated successfully via action ${action}`,
+        data: updated
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   public static async approveCreator(req: Request, res: Response, next: NextFunction) {
     try {
       const user = req.user;
@@ -65,7 +137,7 @@ export class AdminController {
       }
 
       const creatorId = req.params.creatorId;
-      const profile = await AdminService.approveCreatorProfile(creatorId);
+      const profile = await AdminService.reviewCreator(creatorId, 'APPROVE', user.userId);
 
       res.status(200).json({
         success: true,
@@ -99,6 +171,20 @@ export class AdminController {
       }
 
       const data = await AdminService.getVerificationQueue();
+      res.status(200).json({ success: true, data });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  public static async getBusinessVerificationQueue(req: Request, res: Response, next: NextFunction) {
+    try {
+      const user = req.user;
+      if (!user || user.role !== 'MANAGER') {
+        return res.status(403).json({ success: false, message: 'Only managers can view business verification queue' });
+      }
+
+      const data = await AdminService.getBusinessVerificationQueue();
       res.status(200).json({ success: true, data });
     } catch (error) {
       next(error);

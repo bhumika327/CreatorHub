@@ -164,5 +164,13 @@ router.post('/submit-work/:engagementId', authenticateToken, EngagementControlle
  */
 router.post('/release/:engagementId', authenticateToken, EngagementController.approveRelease);
 
+// Proposal Status & History updates (withdraw/view/shortlist)
+router.post('/proposals/:proposalId/status', authenticateToken, EngagementController.updateProposalStatus);
+
+// Engagement Milestones deliverables management
+router.post('/milestones/:milestoneId/submit', authenticateToken, EngagementController.submitMilestoneWork);
+router.post('/milestones/:milestoneId/approve', authenticateToken, EngagementController.approveMilestoneWork);
+router.post('/milestones/:milestoneId/reject', authenticateToken, EngagementController.rejectMilestoneWork);
+
 export default router;
 export { router };

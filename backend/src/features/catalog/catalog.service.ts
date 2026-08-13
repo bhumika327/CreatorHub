@@ -21,7 +21,11 @@ export class CatalogService {
   }
 
   public static async getRequirements(filters: BrowseQueryInput) {
-    const whereClause: any = {};
+    const whereClause: any = {
+      status: {
+        in: ['PUBLISHED', 'PROPOSALS_RECEIVED', 'SHORTLISTED']
+      }
+    };
 
     if (filters.category) {
       whereClause.category = {

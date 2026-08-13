@@ -98,7 +98,27 @@ export class AdminService {
     });
   }
 
-  public static async approveCreatorProfile(creatorId: string) {
+  public static async suspendUser(userId: string, status: 'ACTIVE' | 'SUSPENDED' | 'DEACTIVATED') {
+    const user = await prisma.authUser.findUnique({
+      where: { id: userId }
+    });
+
+    if (!user) {
+      throw { status: 404, message: 'User not found' };
+    }
+
+    return prisma.authUser.update({
+      where: { id: userId },
+      data: { status }
+    });
+  }
+
+  public static async reviewCreator(
+    creatorId: string,
+    action: 'APPROVE' | 'REJECT' | 'SUSPEND' | 'UNDER_REVIEW',
+    reviewerId: string,
+    rejectionReason?: string
+  ) {
     const profile = await prisma.profileCreator.findUnique({
       where: { id: creatorId }
     });
@@ -107,10 +127,93 @@ export class AdminService {
       throw { status: 404, message: 'Creator profile not found' };
     }
 
+    let verificationStatus: 'VERIFIED' | 'REJECTED' | 'SUSPENDED' | 'UNDER_REVIEW';
+    let isApproved = profile.isApproved;
+
+    if (action === 'APPROVE') {
+      verificationStatus = 'VERIFIED';
+      isApproved = true;
+    } else if (action === 'REJECT') {
+      if (!rejectionReason || rejectionReason.trim().length === 0) {
+        throw { status: 400, message: 'Rejection reason is required' };
+      }
+      verificationStatus = 'REJECTED';
+      isApproved = false;
+    } else if (action === 'SUSPEND') {
+      verificationStatus = 'SUSPENDED';
+      isApproved = false;
+    } else {
+      verificationStatus = 'UNDER_REVIEW';
+    }
+
     return prisma.profileCreator.update({
       where: { id: creatorId },
-      data: { isApproved: true }
+      data: {
+        verificationStatus,
+        isApproved,
+        reviewedAt: new Date(),
+        reviewedBy: reviewerId,
+        rejectionReason: action === 'REJECT' ? rejectionReason : null
+      }
     });
+  }
+
+  public static async reviewBusiness(
+    customerId: string,
+    action: 'APPROVE' | 'REJECT' | 'SUSPEND' | 'UNDER_REVIEW',
+    reviewerId: string,
+    rejectionReason?: string
+  ) {
+    const verification = await prisma.businessVerification.findUnique({
+      where: { customerId }
+    });
+
+    if (!verification) {
+      throw { status: 404, message: 'Business verification record not found' };
+    }
+
+    let status: 'VERIFIED' | 'REJECTED' | 'SUSPENDED' | 'UNDER_REVIEW';
+    let customerVerified = false;
+
+    if (action === 'APPROVE') {
+      status = 'VERIFIED';
+      customerVerified = true;
+    } else if (action === 'REJECT') {
+      if (!rejectionReason || rejectionReason.trim().length === 0) {
+        throw { status: 400, message: 'Rejection reason is required' };
+      }
+      status = 'REJECTED';
+    } else if (action === 'SUSPEND') {
+      status = 'SUSPENDED';
+    } else {
+      status = 'UNDER_REVIEW';
+    }
+
+    return prisma.$transaction(async (tx) => {
+      const updatedVerification = await tx.businessVerification.update({
+        where: { customerId },
+        data: {
+          status,
+          reviewedAt: new Date(),
+          reviewedBy: reviewerId,
+          rejectionReason: action === 'REJECT' ? rejectionReason : null
+        }
+      });
+
+      if (action === 'APPROVE' || action === 'REJECT' || action === 'SUSPEND') {
+        await tx.profileCustomer.update({
+          where: { id: customerId },
+          data: { isVerified: customerVerified }
+        });
+      }
+
+      return updatedVerification;
+    });
+  }
+
+  public static async approveCreatorProfile(creatorId: string) {
+    // Kept for backward compatibility but routes to reviewCreator
+    return this.reviewCreator(creatorId, 'APPROVE', 'admin-legacy');
   }
 
   public static async getDisputes() {
@@ -131,7 +234,11 @@ export class AdminService {
 
   public static async getVerificationQueue() {
     return prisma.profileCreator.findMany({
-      where: { isApproved: false },
+      where: {
+        verificationStatus: {
+          in: ['PENDING', 'UNDER_REVIEW']
+        }
+      },
       include: {
         user: {
           select: {
@@ -143,12 +250,26 @@ export class AdminService {
     });
   }
 
+  public static async getBusinessVerificationQueue() {
+    return prisma.businessVerification.findMany({
+      where: {
+        status: {
+          in: ['PENDING', 'UNDER_REVIEW']
+        }
+      },
+      include: {
+        customer: true
+      }
+    });
+  }
+
   public static async getUsers() {
     return prisma.authUser.findMany({
       select: {
         id: true,
         email: true,
         role: true,
+        status: true,
         createdAt: true
       },
       orderBy: { createdAt: 'desc' }
@@ -190,7 +311,8 @@ export class AdminService {
             data: {
               userId,
               displayName: 'Promoted Creator',
-              isApproved: true // auto approve on promotion by admin
+              isApproved: true,
+              verificationStatus: 'VERIFIED'
             }
           });
         }

@@ -183,5 +183,24 @@ router.put('/availability', authenticateToken, UserProfileController.setAvailabi
  */
 router.get('/ai-suggestions', authenticateToken, requirePermission('ai:suggest'), UserProfileController.getAiSuggestions);
 
+// Business Verification
+router.post('/business-verification', authenticateToken, UserProfileController.submitBusinessVerification);
+router.get('/business-verification', authenticateToken, UserProfileController.getBusinessVerification);
+
+// Creator Bookmarks
+router.post('/bookmarks/:creatorId', authenticateToken, UserProfileController.addBookmark);
+router.delete('/bookmarks/:creatorId', authenticateToken, UserProfileController.deleteBookmark);
+router.get('/bookmarks', authenticateToken, UserProfileController.getBookmarks);
+
+// Creator Portfolio Items
+router.post('/portfolio', authenticateToken, UserProfileController.addPortfolioItem);
+router.put('/portfolio/:itemId', authenticateToken, UserProfileController.updatePortfolioItem);
+router.delete('/portfolio/:itemId', authenticateToken, UserProfileController.deletePortfolioItem);
+router.get('/portfolio', authenticateToken, UserProfileController.getPortfolioItems);
+
+// Creator Service Packages
+router.post('/services/:serviceId/packages', authenticateToken, UserProfileController.setServicePackages);
+router.get('/services/:serviceId/packages', UserProfileController.getServicePackages);
+
 export default router;
 export { router };
