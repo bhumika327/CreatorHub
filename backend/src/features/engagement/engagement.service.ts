@@ -1,6 +1,7 @@
 import { prisma } from '../../prisma/client';
 import { SubmitProposalInput } from './engagement.dto';
 import { ProposalStatus, EngagementStatus, UserRole, RequirementStatus, MilestoneStatus } from '@prisma/client';
+import { NotificationService } from '../notification/notification.service';
 
 export class EngagementService {
   private static validateRequirementTransition(from: RequirementStatus, to: RequirementStatus) {
@@ -86,7 +87,7 @@ export class EngagementService {
       throw { status: 400, message: 'You already have an active proposal for this requirement' };
     }
 
-    return prisma.$transaction(async (tx) => {
+    const proposal = await prisma.$transaction(async (tx) => {
       const proposal = await tx.engagementProposal.create({
         data: {
           requirementId,
@@ -117,6 +118,15 @@ export class EngagementService {
 
       return proposal;
     });
+
+    // Notify the customer
+    NotificationService.createNotification(
+      requirement.customerId,
+      'New Proposal Received',
+      `A creator has submitted a new proposal for your requirement "${requirement.title}" with a bid of $${data.bidAmount}.`
+    ).catch(err => console.error('[Notification Trigger] Failed to send new proposal notification:', err));
+
+    return proposal;
   }
 
   public static async acceptProposal(
@@ -181,7 +191,7 @@ export class EngagementService {
     }
 
     // Execute acceptance operations in database transaction
-    return prisma.$transaction(async (tx) => {
+    const engagement = await prisma.$transaction(async (tx) => {
       // 1. Accept this proposal
       const accepted = await tx.engagementProposal.update({
         where: { id: proposalId },
@@ -284,6 +294,32 @@ export class EngagementService {
     }, {
       timeout: 15000
     });
+
+    // Notify the accepted creator
+    NotificationService.createNotification(
+      proposal.creatorId,
+      'Proposal Accepted & Contract Created',
+      `Your proposal for "${proposal.requirement.title}" has been accepted! A new active contract has been initialized.`
+    ).catch(err => console.error('[Notification Trigger] Failed to send proposal accepted notification:', err));
+
+    // Notify competing creators of rejection
+    prisma.engagementProposal.findMany({
+      where: {
+        requirementId: proposal.requirementId,
+        id: { not: proposalId },
+        status: 'REJECTED'
+      }
+    }).then(competing => {
+      for (const comp of competing) {
+        NotificationService.createNotification(
+          comp.creatorId,
+          'Proposal Rejected',
+          `Your proposal for "${proposal.requirement.title}" was not selected as another bid was accepted.`
+        ).catch(err => console.error('[Notification Trigger] Failed to send competing rejection notification:', err));
+      }
+    }).catch(err => console.error('[Notification Trigger] Failed to fetch competing proposals:', err));
+
+    return engagement;
   }
 
   public static async rejectProposal(customerId: string, proposalId: string) {
@@ -304,7 +340,7 @@ export class EngagementService {
       throw { status: 400, message: 'Proposal has already been processed' };
     }
 
-    return prisma.$transaction(async (tx) => {
+    const updated = await prisma.$transaction(async (tx) => {
       const updated = await tx.engagementProposal.update({
         where: { id: proposalId },
         data: { status: 'REJECTED' }
@@ -322,6 +358,14 @@ export class EngagementService {
 
       return updated;
     });
+
+    NotificationService.createNotification(
+      proposal.creatorId,
+      'Proposal Rejected',
+      `Your proposal for "${proposal.requirement.title}" has been rejected by the customer.`
+    ).catch(err => console.error('[Notification Trigger] Failed to send proposal rejected notification:', err));
+
+    return updated;
   }
 
   public static async updateProposalStatus(userId: string, proposalId: string, newStatus: ProposalStatus, comment?: string) {
@@ -346,7 +390,7 @@ export class EngagementService {
       throw { status: 403, message: 'Only the creator can withdraw their proposal' };
     }
 
-    return prisma.$transaction(async (tx) => {
+    const updated = await prisma.$transaction(async (tx) => {
       const updated = await tx.engagementProposal.update({
         where: { id: proposalId },
         data: { status: newStatus }
@@ -364,6 +408,34 @@ export class EngagementService {
 
       return updated;
     });
+
+    if (newStatus === 'SHORTLISTED') {
+      NotificationService.createNotification(
+        proposal.creatorId,
+        'Proposal Shortlisted',
+        `Your proposal for "${proposal.requirement.title}" has been shortlisted by the customer!`
+      ).catch(err => console.error(err));
+    } else if (newStatus === 'REJECTED') {
+      NotificationService.createNotification(
+        proposal.creatorId,
+        'Proposal Rejected',
+        `Your proposal for "${proposal.requirement.title}" has been rejected.`
+      ).catch(err => console.error(err));
+    } else if (newStatus === 'ACCEPTED') {
+      NotificationService.createNotification(
+        proposal.creatorId,
+        'Proposal Accepted',
+        `Your proposal for "${proposal.requirement.title}" has been accepted!`
+      ).catch(err => console.error(err));
+    } else if (newStatus === 'WITHDRAWN') {
+      NotificationService.createNotification(
+        proposal.requirement.customerId,
+        'Proposal Withdrawn',
+        `The proposal submitted for your requirement "${proposal.requirement.title}" has been withdrawn by the creator.`
+      ).catch(err => console.error(err));
+    }
+
+    return updated;
   }
 
   public static async submitMilestoneWork(creatorId: string, milestoneId: string, deliverableUrl: string, deliverableNotes?: string) {
@@ -384,7 +456,7 @@ export class EngagementService {
       throw { status: 400, message: 'Work has already been submitted or approved for this milestone' };
     }
 
-    return prisma.$transaction(async (tx) => {
+    const updated = await prisma.$transaction(async (tx) => {
       const updated = await tx.engagementMilestone.update({
         where: { id: milestoneId },
         data: {
@@ -396,15 +468,39 @@ export class EngagementService {
       });
 
       // Update engagement status to IN_PROGRESS if currently ACTIVE
-      if (milestone.engagement.status === 'ACTIVE') {
+      if (milestone!.engagement.status === 'ACTIVE') {
         await tx.engagement.update({
-          where: { id: milestone.engagementId },
+          where: { id: milestone!.engagementId },
           data: { status: 'IN_PROGRESS' }
         });
       }
 
       return updated;
     });
+
+    // Notify the customer of work submission
+    NotificationService.createNotification(
+      milestone!.engagement.customerId,
+      'Milestone Deliverable Submitted',
+      `The creator has submitted work for the milestone "${milestone!.title}". Please review and approve.`
+    ).catch(err => console.error(err));
+
+    // Notify counterparties if status changes to IN_PROGRESS
+    if (milestone!.engagement.status === 'ACTIVE') {
+      NotificationService.createNotification(
+        milestone!.engagement.creatorId,
+        'Contract Status Changed',
+        `Contract status for requirement "${milestone!.engagement.id}" is now In Progress.`
+      ).catch(err => console.error(err));
+
+      NotificationService.createNotification(
+        milestone!.engagement.customerId,
+        'Contract Status Changed',
+        `Contract status for requirement "${milestone!.engagement.id}" is now In Progress.`
+      ).catch(err => console.error(err));
+    }
+
+    return updated;
   }
 
   public static async approveMilestoneWork(customerId: string, milestoneId: string) {
@@ -425,7 +521,7 @@ export class EngagementService {
       throw { status: 400, message: 'Milestone is not in a submitted state' };
     }
 
-    return prisma.$transaction(async (tx) => {
+    const updated = await prisma.$transaction(async (tx) => {
       const updated = await tx.engagementMilestone.update({
         where: { id: milestoneId },
         data: {
@@ -436,25 +532,54 @@ export class EngagementService {
 
       // Check if all milestones are approved for this engagement
       const allMilestones = await tx.engagementMilestone.findMany({
-        where: { engagementId: milestone.engagementId }
+        where: { engagementId: milestone!.engagementId }
       });
       const allApproved = allMilestones.every(m => m.status === 'APPROVED');
 
       if (allApproved) {
         // Complete the contract & update requirement status to COMPLETED
         await tx.engagement.update({
-          where: { id: milestone.engagementId },
+          where: { id: milestone!.engagementId },
           data: { status: 'DELIVERED' } // Sets status representing completion
         });
 
         await tx.catalogRequirement.update({
-          where: { id: milestone.engagement.requirementId },
+          where: { id: milestone!.engagement.requirementId },
           data: { status: 'DELIVERED' }
         });
       }
 
       return updated;
     });
+
+    // Notify the creator of approval
+    NotificationService.createNotification(
+      milestone!.engagement.creatorId,
+      'Milestone Work Approved',
+      `Your work submission for the milestone "${milestone!.title}" has been approved by the customer.`
+    ).catch(err => console.error(err));
+
+    // Check if contract status changed to DELIVERED
+    prisma.engagementMilestone.findMany({
+      where: { engagementId: milestone!.engagementId }
+    }).then(allMilestones => {
+      const allApproved = allMilestones.every(m => m.status === 'APPROVED');
+      if (allApproved) {
+        NotificationService.createNotification(
+          milestone!.engagement.creatorId,
+          'Contract Status Changed',
+          `Your contract has been completed and marked as Delivered. Funds will be released soon.`
+        ).catch(err => console.error(err));
+
+        NotificationService.createNotification(
+          milestone!.engagement.customerId,
+          'Contract Status Changed',
+          `Your contract has been completed and marked as Delivered.`
+        ).catch(err => console.error(err));
+      }
+    }).catch(err => console.error(err));
+
+    return updated;
   }
 
   public static async rejectMilestoneWork(customerId: string, milestoneId: string, notes: string) {
@@ -475,13 +600,21 @@ export class EngagementService {
       throw { status: 400, message: 'Milestone is not in a submitted state' };
     }
 
-    return prisma.engagementMilestone.update({
+    const updated = await prisma.engagementMilestone.update({
       where: { id: milestoneId },
       data: {
         status: 'REJECTED',
         deliverableNotes: notes
       }
     });
+
+    NotificationService.createNotification(
+      milestone!.engagement.creatorId,
+      'Milestone Work Rejected',
+      `Your work submission for the milestone "${milestone!.title}" was rejected. Feedback: "${notes}"`
+    ).catch(err => console.error(err));
+
+    return updated;
   }
 
   public static async submitDeliverable(creatorId: string, engagementId: string) {
@@ -512,7 +645,7 @@ export class EngagementService {
       throw { status: 403, message: 'Unauthorized: only the client can approve completion' };
     }
 
-    return prisma.$transaction(async (tx) => {
+    const completed = await prisma.$transaction(async (tx) => {
       // 1. Update status
       const completed = await tx.engagement.update({
         where: { id: engagementId },
@@ -537,6 +670,20 @@ export class EngagementService {
 
       return completed;
     });
+
+    NotificationService.createNotification(
+      completed.creatorId,
+      'Contract Status Changed',
+      `Contract has been marked as Completed and funds have been released to your payouts wallet!`
+    ).catch(err => console.error(err));
+
+    NotificationService.createNotification(
+      completed.customerId,
+      'Contract Status Changed',
+      `Contract has been marked as Completed.`
+    ).catch(err => console.error(err));
+
+    return completed;
   }
 
   public static async getProposals(userId: string, role: UserRole) {

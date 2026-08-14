@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
+import { setAccessToken } from '../../../lib/tokenStore';
 
 interface LoginFormProps {
   onLoginSuccess: (user: any) => void;
@@ -28,7 +29,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onLoginSuccess }) => {
 
       if (response.data?.success) {
         const { accessToken, user } = response.data.data;
-        localStorage.setItem('accessToken', accessToken);
+        setAccessToken(accessToken);
         localStorage.setItem('user', JSON.stringify(user));
         
         onLoginSuccess(user);

@@ -31,9 +31,9 @@ export class ChatService {
     await this.verifyRoomAccess(senderId, roomId);
 
     // Apply Leak sanitizer check
-    const sanitizedContent = filterContactLeaking(content);
+    const { content: sanitizedContent, filtered } = filterContactLeaking(content);
 
-    return prisma.chatMessage.create({
+    const message = await prisma.chatMessage.create({
       data: {
         roomId,
         senderId,
@@ -43,12 +43,26 @@ export class ChatService {
         sender: {
           select: {
             id: true,
-            email: true,
-            role: true
+            role: true,
+            customerProfile: {
+              select: {
+                fullName: true
+              }
+            },
+            creatorProfile: {
+              select: {
+                displayName: true
+              }
+            }
           }
         }
       }
     });
+
+    return {
+      ...message,
+      filtered
+    };
   }
 
   public static async getMessages(userId: string, roomId: string, lastMessageId?: string) {
@@ -72,8 +86,17 @@ export class ChatService {
         sender: {
           select: {
             id: true,
-            email: true,
-            role: true
+            role: true,
+            customerProfile: {
+              select: {
+                fullName: true
+              }
+            },
+            creatorProfile: {
+              select: {
+                displayName: true
+              }
+            }
           }
         }
       }

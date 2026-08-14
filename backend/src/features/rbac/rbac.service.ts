@@ -129,4 +129,80 @@ export class RbacService {
 
     return Array.from(permissions);
   }
+
+  public static async hasPermission(userId: string, role: UserRole, permissionName: string): Promise<boolean> {
+    if (role === UserRole.MANAGER) {
+      const override = await prisma.authUserPermissionOverride.findUnique({
+        where: {
+          userId_permissionName: {
+            userId,
+            permissionName
+          }
+        }
+      });
+      if (override && !override.allowed) {
+        return false;
+      }
+      return true;
+    }
+
+    // 1. Check user override
+    const override = await prisma.authUserPermissionOverride.findUnique({
+      where: {
+        userId_permissionName: {
+          userId,
+          permissionName
+        }
+      }
+    });
+
+    if (override) {
+      return override.allowed;
+    }
+
+    // 2. Check role permission
+    const rolePermission = await prisma.authRolePermission.findUnique({
+      where: {
+        role_permissionName: {
+          role,
+          permissionName
+        }
+      }
+    });
+
+    return !!rolePermission;
+  }
+
+  public static async ensurePermissions() {
+    const permissionsToEnsure = [
+      { role: UserRole.CUSTOMER, permissionName: 'notification:view' },
+      { role: UserRole.CUSTOMER, permissionName: 'notification:update' },
+      { role: UserRole.CUSTOMER, permissionName: 'chat:view' },
+      { role: UserRole.CUSTOMER, permissionName: 'chat:send' },
+      { role: UserRole.CREATOR, permissionName: 'notification:view' },
+      { role: UserRole.CREATOR, permissionName: 'notification:update' },
+      { role: UserRole.CREATOR, permissionName: 'chat:view' },
+      { role: UserRole.CREATOR, permissionName: 'chat:send' },
+      { role: UserRole.MANAGER, permissionName: 'notification:view' },
+      { role: UserRole.MANAGER, permissionName: 'notification:update' },
+      { role: UserRole.MANAGER, permissionName: 'chat:view' },
+      { role: UserRole.MANAGER, permissionName: 'chat:send' }
+    ];
+
+    for (const item of permissionsToEnsure) {
+      await prisma.authRolePermission.upsert({
+        where: {
+          role_permissionName: {
+            role: item.role,
+            permissionName: item.permissionName
+          }
+        },
+        update: {},
+        create: {
+          role: item.role,
+          permissionName: item.permissionName
+        }
+      });
+    }
+  }
 }

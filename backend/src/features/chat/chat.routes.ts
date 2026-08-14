@@ -17,7 +17,7 @@ const router = Router();
  *       200:
  *         description: Active rooms list retrieved
  */
-router.get('/rooms', authenticateToken, requirePermission('chat:read'), ChatController.getRooms);
+router.get('/rooms', authenticateToken, requirePermission('chat:view'), ChatController.getRooms);
 
 /**
  * @openapi
@@ -75,7 +75,7 @@ router.post('/room/:roomId/message', authenticateToken, requirePermission('chat:
  *       200:
  *         description: List of messages
  */
-router.get('/room/:roomId/messages', authenticateToken, requirePermission('chat:read'), ChatController.getMessages);
+router.get('/room/:roomId/messages', authenticateToken, requirePermission('chat:view'), ChatController.getMessages);
 
 export default router;
 export { router };

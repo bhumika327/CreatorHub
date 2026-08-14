@@ -15,9 +15,11 @@ import {
   FileText,
   ChevronLeft,
   ChevronRight,
-  UserPlus
+  UserPlus,
+  Bell
 } from 'lucide-react';
 import { ThemeToggle } from './ThemeToggle';
+import { useSocket } from '../context/SocketContext';
 
 interface SidebarProps {
   user: {
@@ -44,6 +46,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   if (!user) return null;
 
+  const { unreadCount } = useSocket();
+
   const isActive = (path: string) => location.pathname === path;
 
   const menuItems = {
@@ -53,6 +57,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       { name: 'My Requirements', path: '/catalog/requirements', icon: <Layers className="w-5 h-5" /> },
       { name: 'Contracts', path: '/engagement/contracts', icon: <Briefcase className="w-5 h-5" /> },
       { name: 'Chat Rooms', path: '/chat', icon: <MessageSquare className="w-5 h-5" /> },
+      { name: 'Notifications', path: '/notifications', icon: <Bell className="w-5 h-5" />, badge: true },
       { name: 'Wallet Ledger', path: '/payment/ledger', icon: <DollarSign className="w-5 h-5" /> }
     ],
     CREATOR: [
@@ -62,13 +67,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
       { name: 'Active Contracts', path: '/engagement/contracts', icon: <Briefcase className="w-5 h-5" /> },
       { name: 'AI Suggestion Tool', path: '/creator/ai-suggestions', icon: <Sparkles className="w-5 h-5" /> },
       { name: 'Chat Rooms', path: '/chat', icon: <MessageSquare className="w-5 h-5" /> },
+      { name: 'Notifications', path: '/notifications', icon: <Bell className="w-5 h-5" />, badge: true },
       { name: 'Payout Ledger', path: '/payment/ledger', icon: <DollarSign className="w-5 h-5" /> }
     ],
     MANAGER: [
       { name: 'Verification Queue', path: '/manager/verify', icon: <UserCheck className="w-5 h-5" /> },
       { name: 'Disputes Console', path: '/manager/disputes', icon: <Flag className="w-5 h-5" /> },
       { name: 'RBAC Permission Grid', path: '/manager/rbac', icon: <ShieldCheck className="w-5 h-5" /> },
-      { name: 'Manage Accounts', path: '/manager/accounts', icon: <UserPlus className="w-5 h-5" /> }
+      { name: 'Manage Accounts', path: '/manager/accounts', icon: <UserPlus className="w-5 h-5" /> },
+      { name: 'Notifications', path: '/notifications', icon: <Bell className="w-5 h-5" />, badge: true }
     ]
   };
 
@@ -131,8 +138,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
               }`}
               title={collapsed ? item.name : undefined}
             >
-              <span className={collapsed ? '' : 'mr-3'}>{item.icon}</span>
-              {!collapsed && <span>{item.name}</span>}
+              <span className={`relative flex items-center ${collapsed ? '' : 'mr-3'}`}>
+                {item.icon}
+                {item.badge && unreadCount > 0 && (
+                  <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-green-500 border-2 border-white dark:border-gray-900 rounded-full" />
+                )}
+              </span>
+              {!collapsed && <span className="flex-1 text-left">{item.name}</span>}
+              {!collapsed && item.badge && unreadCount > 0 && (
+                <span className="ml-auto bg-green-500 text-white text-[10px] font-black w-5 h-5 rounded-full flex items-center justify-center shadow-md animate-pulse">
+                  {unreadCount}
+                </span>
+              )}
             </button>
           ))}
         </nav>

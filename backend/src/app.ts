@@ -14,6 +14,7 @@ import chatRoutes from './features/chat/chat.routes';
 import paymentRoutes from './features/payment/payment.routes';
 import reviewRoutes from './features/review/review.routes';
 import adminRoutes from './features/admin/admin.routes';
+import notificationRoutes from './features/notification/notification.routes';
 
 // Import common middlewares
 import { requestLogger } from './common/middleware/logger';
@@ -69,6 +70,7 @@ app.use('/api/chat', chatRoutes);
 app.use('/api/payment', paymentRoutes);
 app.use('/api/review', reviewRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 // Base route redirection or welcome message
 app.get('/', (req, res) => {

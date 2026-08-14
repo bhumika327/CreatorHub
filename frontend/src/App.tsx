@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { setAccessToken } from './lib/tokenStore';
+import { apiClient } from './lib/apiClient';
 
 // Layouts
 import { DashboardLayout } from './layouts/DashboardLayout';
@@ -31,6 +33,9 @@ import { WalletLedger } from './features/payment/WalletLedger';
 // Chat
 import { ChatWindow } from './features/chat/ChatWindow';
 
+// Notifications
+import { NotificationsList } from './features/notification/NotificationsList';
+
 // Manager Pages
 import { PermissionGrid } from './features/dashboard-manager/PermissionGrid';
 import { VerificationQueue } from './features/dashboard-manager/VerificationQueue';
@@ -59,19 +64,37 @@ function App() {
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
-    const stored = localStorage.getItem('user');
-    if (stored) {
-      try {
-        setUser(JSON.parse(stored));
-      } catch {
-        localStorage.clear();
+    const initAuth = async () => {
+      const stored = localStorage.getItem('user');
+      if (stored) {
+        try {
+          const res = await apiClient.post('/api/auth/refresh');
+          if (res.data?.success) {
+            const { accessToken, user: refreshedUser } = res.data.data;
+            setAccessToken(accessToken);
+            setUser(refreshedUser);
+            localStorage.setItem('user', JSON.stringify(refreshedUser));
+          } else {
+            throw new Error();
+          }
+        } catch {
+          setAccessToken(null);
+          localStorage.removeItem('user');
+          setUser(null);
+        }
       }
-    }
-    setHydrated(true);
+      setHydrated(true);
+    };
+    initAuth();
   }, []);
 
-  const handleLogout = () => {
-    localStorage.removeItem('accessToken');
+  const handleLogout = async () => {
+    try {
+      await apiClient.post('/api/auth/logout');
+    } catch (err) {
+      console.error('Logout error:', err);
+    }
+    setAccessToken(null);
     localStorage.removeItem('user');
     setUser(null);
   };
@@ -200,6 +223,18 @@ function App() {
             <ProtectedRoute user={user} allowedRoles={['CUSTOMER', 'CREATOR']}>
               <DashboardLayout user={user} onLogout={handleLogout}>
                 <ChatWindow />
+              </DashboardLayout>
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Notifications — Shared */}
+        <Route
+          path="/notifications"
+          element={
+            <ProtectedRoute user={user} allowedRoles={['CUSTOMER', 'CREATOR', 'MANAGER']}>
+              <DashboardLayout user={user} onLogout={handleLogout}>
+                <NotificationsList />
               </DashboardLayout>
             </ProtectedRoute>
           }

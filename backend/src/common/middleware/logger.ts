@@ -6,8 +6,8 @@ export const requestLogger = (req: Request, res: Response, next: NextFunction) =
 
   // Capture response finish to log the status code
   res.on('finish', () => {
-    // Only log state-changing API modifications (POST, PUT, DELETE)
-    if (['POST', 'PUT', 'DELETE'].includes(req.method)) {
+    // Only log state-changing API modifications (POST, PUT, DELETE), excluding notification actions
+    if (['POST', 'PUT', 'DELETE'].includes(req.method) && !req.url.startsWith('/api/notifications')) {
       const user = (req as any).user;
       const auditRecord = {
         method: req.method,

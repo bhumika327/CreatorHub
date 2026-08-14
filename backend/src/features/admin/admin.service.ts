@@ -1,5 +1,6 @@
 import { prisma } from '../../prisma/client';
 import { DisputeStatus, EngagementStatus } from '@prisma/client';
+import { NotificationService } from '../notification/notification.service';
 
 export class AdminService {
   public static async raiseDispute(initiatorId: string, engagementId: string, reason: string) {
@@ -19,7 +20,7 @@ export class AdminService {
       throw { status: 400, message: 'Cannot dispute a completed or refunded contract' };
     }
 
-    return prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx) => {
       // 1. Update contract status to DISPUTED
       await tx.engagement.update({
         where: { id: engagementId },
@@ -36,6 +37,21 @@ export class AdminService {
         }
       });
     });
+
+    // Notify counterparties of dispute initiation
+    NotificationService.createNotification(
+      engagement.creatorId,
+      'Contract Status Changed',
+      `A dispute has been opened on your contract "${engagementId}". Status is now Disputed.`
+    ).catch(err => console.error(err));
+
+    NotificationService.createNotification(
+      engagement.customerId,
+      'Contract Status Changed',
+      `A dispute has been opened on your contract "${engagementId}". Status is now Disputed.`
+    ).catch(err => console.error(err));
+
+    return result;
   }
 
   public static async resolveDispute(disputeId: string, resolutionNotes: string, action: 'REFUND' | 'RELEASE') {
@@ -52,12 +68,12 @@ export class AdminService {
       throw { status: 400, message: 'Dispute is already resolved' };
     }
 
-    return prisma.$transaction(async (tx) => {
+    const resolvedDispute = await prisma.$transaction(async (tx) => {
       const disputeStatus = action === 'REFUND' ? DisputeStatus.RESOLVED_REFUNDED : DisputeStatus.RESOLVED_RELEASED;
       const engagementStatus = action === 'REFUND' ? EngagementStatus.REFUNDED : EngagementStatus.COMPLETED;
 
       // 1. Update dispute state
-      const resolvedDispute = await tx.engagementDispute.update({
+      const resolved = await tx.engagementDispute.update({
         where: { id: disputeId },
         data: {
           status: disputeStatus,
@@ -94,8 +110,24 @@ export class AdminService {
         });
       }
 
-      return resolvedDispute;
+      return resolved;
     });
+
+    const resolutionStatusText = action === 'REFUND' ? 'Refunded' : 'Completed';
+
+    NotificationService.createNotification(
+      dispute.engagement.creatorId,
+      'Contract Status Changed',
+      `The dispute on contract "${dispute.engagementId}" has been resolved. Contract status is now ${resolutionStatusText}.`
+    ).catch(err => console.error(err));
+
+    NotificationService.createNotification(
+      dispute.engagement.customerId,
+      'Contract Status Changed',
+      `The dispute on contract "${dispute.engagementId}" has been resolved. Contract status is now ${resolutionStatusText}.`
+    ).catch(err => console.error(err));
+
+    return resolvedDispute;
   }
 
   public static async suspendUser(userId: string, status: 'ACTIVE' | 'SUSPENDED' | 'DEACTIVATED') {
@@ -146,7 +178,7 @@ export class AdminService {
       verificationStatus = 'UNDER_REVIEW';
     }
 
-    return prisma.profileCreator.update({
+    const updatedProfile = await prisma.profileCreator.update({
       where: { id: creatorId },
       data: {
         verificationStatus,
@@ -156,6 +188,28 @@ export class AdminService {
         rejectionReason: action === 'REJECT' ? rejectionReason : null
       }
     });
+
+    if (action === 'APPROVE') {
+      NotificationService.createNotification(
+        profile.userId,
+        'Creator Verification Approved',
+        'Congratulations! Your creator profile has been verified and approved.'
+      ).catch(err => console.error(err));
+    } else if (action === 'REJECT') {
+      NotificationService.createNotification(
+        profile.userId,
+        'Creator Verification Rejected',
+        `Your creator profile verification was rejected. Reason: ${rejectionReason}`
+      ).catch(err => console.error(err));
+    } else if (action === 'SUSPEND') {
+      NotificationService.createNotification(
+        profile.userId,
+        'Creator Verification Suspended',
+        'Your verification status has been suspended.'
+      ).catch(err => console.error(err));
+    }
+
+    return updatedProfile;
   }
 
   public static async reviewBusiness(
@@ -164,12 +218,12 @@ export class AdminService {
     reviewerId: string,
     rejectionReason?: string
   ) {
-    const verification = await prisma.businessVerification.findUnique({
-      where: { customerId }
+    const customerProfile = await prisma.profileCustomer.findUnique({
+      where: { id: customerId }
     });
 
-    if (!verification) {
-      throw { status: 404, message: 'Business verification record not found' };
+    if (!customerProfile) {
+      throw { status: 404, message: 'Customer profile not found' };
     }
 
     let status: 'VERIFIED' | 'REJECTED' | 'SUSPENDED' | 'UNDER_REVIEW';
@@ -189,7 +243,7 @@ export class AdminService {
       status = 'UNDER_REVIEW';
     }
 
-    return prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx) => {
       const updatedVerification = await tx.businessVerification.update({
         where: { customerId },
         data: {
@@ -209,6 +263,28 @@ export class AdminService {
 
       return updatedVerification;
     });
+
+    if (action === 'APPROVE') {
+      NotificationService.createNotification(
+        customerProfile.userId,
+        'Business Verification Approved',
+        'Congratulations! Your business verification profile has been verified and approved.'
+      ).catch(err => console.error(err));
+    } else if (action === 'REJECT') {
+      NotificationService.createNotification(
+        customerProfile.userId,
+        'Business Verification Rejected',
+        `Your business verification was rejected. Reason: ${rejectionReason}`
+      ).catch(err => console.error(err));
+    } else if (action === 'SUSPEND') {
+      NotificationService.createNotification(
+        customerProfile.userId,
+        'Business Verification Suspended',
+        'Your business verification status has been suspended.'
+      ).catch(err => console.error(err));
+    }
+
+    return result;
   }
 
   public static async approveCreatorProfile(creatorId: string) {
