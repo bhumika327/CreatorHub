@@ -219,9 +219,11 @@ async function main() {
   console.log('[Seed] Seeding mock transaction ledgers...');
   await prisma.paymentTransactionLedger.create({
     data: {
-      userId: customer.id,
+      payerId: customer.id,
+      payeeId: customer.id,
       amount: 1000.00,
       type: 'DEPOSIT',
+      status: 'RELEASED',
       description: 'Initial wallet deposit simulation'
     }
   });

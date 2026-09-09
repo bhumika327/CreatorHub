@@ -36,16 +36,17 @@ export class AdminController {
       }
 
       const disputeId = req.params.disputeId;
-      const { resolutionNotes, action } = req.body;
+      const { resolutionNotes, resolution, action } = req.body;
+      const notes = resolutionNotes || resolution;
 
-      if (!resolutionNotes || !action || !['REFUND', 'RELEASE'].includes(action)) {
+      if (!notes || !action || !['REFUND', 'RELEASE'].includes(action)) {
         return res.status(400).json({
           success: false,
           message: "resolutionNotes and action ('REFUND' or 'RELEASE') are required"
         });
       }
 
-      const dispute = await AdminService.resolveDispute(disputeId, resolutionNotes, action as 'REFUND' | 'RELEASE');
+      const dispute = await AdminService.resolveDispute(disputeId, notes, action as 'REFUND' | 'RELEASE');
 
       res.status(200).json({
         success: true,

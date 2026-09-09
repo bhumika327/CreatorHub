@@ -40,7 +40,8 @@ model AuthUser {
   chatMessagesSent      ChatMessage[]
   reviewsWritten        Review[]             @relation("ReviewAuthor")
   reviewsReceived       Review[]             @relation("ReviewTarget")
-  transactions          PaymentTransactionLedger[]
+  paymentsPaid          PaymentTransactionLedger[] @relation("PaymentsPaid")
+  paymentsReceived      PaymentTransactionLedger[] @relation("PaymentsReceived")
   disputesInitiated     EngagementDispute[]  @relation("DisputeInitiator")
   proposals             EngagementProposal[]
   requirements          CatalogRequirement[]
@@ -246,6 +247,7 @@ model Engagement {
   disputes      EngagementDispute[]
   chatRooms     ChatRoom[]
   milestones    EngagementMilestone[]
+  transactions  PaymentTransactionLedger[]
 }
 
 enum DisputeStatus {
@@ -302,14 +304,37 @@ enum TransactionType {
   REFUND
 }
 
+enum TransactionStatus {
+  INITIATED
+  HELD
+  RELEASED
+  REFUNDED
+  FAILED
+}
+
 model PaymentTransactionLedger {
-  id          String          @id @default(uuid())
-  userId      String
-  user        AuthUser        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  amount      Float
-  type        TransactionType
-  description String
-  createdAt   DateTime        @default(now())
+  id            String             @id @default(uuid())
+  engagementId  String?
+  engagement    Engagement?        @relation(fields: [engagementId], references: [id], onDelete: Cascade)
+  milestoneId   String?
+  milestone     EngagementMilestone? @relation(fields: [milestoneId], references: [id], onDelete: Cascade)
+  payerId       String?
+  payer         AuthUser?          @relation("PaymentsPaid", fields: [payerId], references: [id], onDelete: Cascade)
+  payeeId       String?
+  payee         AuthUser?          @relation("PaymentsReceived", fields: [payeeId], references: [id], onDelete: Cascade)
+  amount        Decimal            @db.Decimal(10, 2)
+  currency      String             @default("USD")
+  type          TransactionType
+  status        TransactionStatus  @default(INITIATED)
+  providerRef   String?
+  description   String
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @default(now()) @updatedAt
+
+  @@index([engagementId])
+  @@index([milestoneId])
+  @@index([payerId])
+  @@index([payeeId])
 }
 
 // ==========================================
@@ -441,6 +466,7 @@ model EngagementMilestone {
   approvedAt     DateTime?
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
+  transactions   PaymentTransactionLedger[]
 
   @@index([engagementId])
   @@index([status])

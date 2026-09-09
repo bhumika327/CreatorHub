@@ -266,15 +266,7 @@ export class EngagementService {
         }
       });
 
-      // 7. Deduct/Hold budget inside Mock Payment Ledger
-      await tx.paymentTransactionLedger.create({
-        data: {
-          userId: customerId,
-          amount: -proposal.bidAmount,
-          type: 'ESCROW_HOLD',
-          description: `Escrow hold for engagement ID: ${engagement.id}`
-        }
-      });
+      // 7. Milestones are created in PENDING state; the customer will fund them manually.
 
       // 8. Create Milestones
       for (const m of milestonesToCreate) {
@@ -456,6 +448,19 @@ export class EngagementService {
       throw { status: 400, message: 'Work has already been submitted or approved for this milestone' };
     }
 
+    // Verify that the milestone payment is funded and held in escrow
+    const payment = await prisma.paymentTransactionLedger.findFirst({
+      where: {
+        milestoneId,
+        type: 'ESCROW_HOLD',
+        status: 'HELD'
+      }
+    });
+
+    if (!payment) {
+      throw { status: 400, message: 'Milestone must be funded before work can be submitted' };
+    }
+
     const updated = await prisma.$transaction(async (tx) => {
       const updated = await tx.engagementMilestone.update({
         where: { id: milestoneId },
@@ -522,6 +527,25 @@ export class EngagementService {
     }
 
     const updated = await prisma.$transaction(async (tx) => {
+      // 1. Release milestone escrow payment from HELD to RELEASED status
+      const escrowTx = await tx.paymentTransactionLedger.findFirst({
+        where: {
+          milestoneId,
+          type: 'ESCROW_HOLD',
+          status: 'HELD'
+        }
+      });
+
+      if (!escrowTx) {
+        throw { status: 400, message: 'No active escrow hold transaction found for this milestone' };
+      }
+
+      await tx.paymentTransactionLedger.update({
+        where: { id: escrowTx.id },
+        data: { status: 'RELEASED' }
+      });
+
+      // 2. Approve milestone work
       const updated = await tx.engagementMilestone.update({
         where: { id: milestoneId },
         data: {
@@ -661,9 +685,12 @@ export class EngagementService {
       // 2. Release funds to Creator Ledger
       await tx.paymentTransactionLedger.create({
         data: {
-          userId: engagement.creatorId,
+          payerId: engagement.customerId,
+          payeeId: engagement.creatorId,
+          engagementId: engagement.id,
           amount: engagement.amount,
           type: 'RELEASE',
+          status: 'RELEASED',
           description: `Escrow release payout for engagement ID: ${engagement.id}`
         }
       });

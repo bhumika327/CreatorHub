@@ -41,6 +41,7 @@ import { PermissionGrid } from './features/dashboard-manager/PermissionGrid';
 import { VerificationQueue } from './features/dashboard-manager/VerificationQueue';
 import { DisputesConsole } from './features/dashboard-manager/DisputesConsole';
 import { ManagerAccounts } from './features/dashboard-manager/ManagerAccounts';
+import { ErrorBoundary } from './components/ErrorBoundary';
 
 interface AuthUser {
   id: string;
@@ -278,7 +279,9 @@ function App() {
           element={
             <ProtectedRoute user={user} allowedRoles={['MANAGER']}>
               <DashboardLayout user={user} onLogout={handleLogout}>
-                <DisputesConsole />
+                <ErrorBoundary fallbackTitle="Disputes Console Error">
+                  <DisputesConsole />
+                </ErrorBoundary>
               </DashboardLayout>
             </ProtectedRoute>
           }

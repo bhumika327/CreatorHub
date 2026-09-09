@@ -78,6 +78,25 @@ export class AdminService {
         data: {
           status: disputeStatus,
           resolutionNotes
+        },
+        include: {
+          engagement: {
+            include: {
+              requirement: {
+                select: {
+                  id: true,
+                  title: true
+                }
+              }
+            }
+          },
+          initiator: {
+            select: {
+              id: true,
+              email: true,
+              role: true
+            }
+          }
         }
       });
 
@@ -87,14 +106,17 @@ export class AdminService {
         data: { status: engagementStatus }
       });
 
-      // 3. Process Ledger Ledger operations
+      // 3. Process Ledger operations
       if (action === 'REFUND') {
         // Refund back to Customer
         await tx.paymentTransactionLedger.create({
           data: {
-            userId: dispute.engagement.customerId,
+            payerId: dispute.engagement.customerId,
+            payeeId: dispute.engagement.creatorId,
+            engagementId: dispute.engagementId,
             amount: dispute.engagement.amount,
             type: 'REFUND',
+            status: 'REFUNDED',
             description: `Escrow refund for engagement ID: ${dispute.engagementId} due to dispute resolution`
           }
         });
@@ -102,9 +124,12 @@ export class AdminService {
         // Release hold to Creator
         await tx.paymentTransactionLedger.create({
           data: {
-            userId: dispute.engagement.creatorId,
+            payerId: dispute.engagement.customerId,
+            payeeId: dispute.engagement.creatorId,
+            engagementId: dispute.engagementId,
             amount: dispute.engagement.amount,
             type: 'RELEASE',
+            status: 'RELEASED',
             description: `Escrow payout release for engagement ID: ${dispute.engagementId} due to dispute resolution`
           }
         });
@@ -295,7 +320,16 @@ export class AdminService {
   public static async getDisputes() {
     return prisma.engagementDispute.findMany({
       include: {
-        engagement: true,
+        engagement: {
+          include: {
+            requirement: {
+              select: {
+                id: true,
+                title: true
+              }
+            }
+          }
+        },
         initiator: {
           select: {
             id: true,

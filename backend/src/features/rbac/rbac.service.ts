@@ -179,14 +179,21 @@ export class RbacService {
       { role: UserRole.CUSTOMER, permissionName: 'notification:update' },
       { role: UserRole.CUSTOMER, permissionName: 'chat:view' },
       { role: UserRole.CUSTOMER, permissionName: 'chat:send' },
+      { role: UserRole.CUSTOMER, permissionName: 'payment:fund' },
+      { role: UserRole.CUSTOMER, permissionName: 'payment:release' },
+      { role: UserRole.CUSTOMER, permissionName: 'payment:refund' },
+      { role: UserRole.CUSTOMER, permissionName: 'payment:view' },
       { role: UserRole.CREATOR, permissionName: 'notification:view' },
       { role: UserRole.CREATOR, permissionName: 'notification:update' },
       { role: UserRole.CREATOR, permissionName: 'chat:view' },
       { role: UserRole.CREATOR, permissionName: 'chat:send' },
+      { role: UserRole.CREATOR, permissionName: 'payment:view' },
       { role: UserRole.MANAGER, permissionName: 'notification:view' },
       { role: UserRole.MANAGER, permissionName: 'notification:update' },
       { role: UserRole.MANAGER, permissionName: 'chat:view' },
-      { role: UserRole.MANAGER, permissionName: 'chat:send' }
+      { role: UserRole.MANAGER, permissionName: 'chat:send' },
+      { role: UserRole.MANAGER, permissionName: 'payment:refund' },
+      { role: UserRole.MANAGER, permissionName: 'payment:view' }
     ];
 
     for (const item of permissionsToEnsure) {
