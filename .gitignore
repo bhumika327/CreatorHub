@@ -2,7 +2,7 @@
 node_modules/
 jspm_packages/
 web_modules/
-
+docs/
 # Build and Production Outputs
 dist/
 build/
@@ -25,6 +25,9 @@ yarn-debug.log*
 yarn-error.log*
 lerna-debug.log*
 .pnpm-debug.log*
+logs/
+backend/logs/
+*.json.log
 
 # Database & Runtime
 prisma/dev.db

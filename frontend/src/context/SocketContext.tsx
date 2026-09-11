@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { getAccessToken, addTokenChangeListener } from '../lib/tokenStore';
-import { apiClient } from '../lib/apiClient';
+import { apiClient, API_BASE_URL } from '../lib/apiClient';
 import { useToast } from './ToastContext';
 
 interface SocketContextType {
@@ -52,7 +52,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       }
 
       if (token) {
-        const newSocket = io('http://localhost:5000', {
+        const newSocket = io(API_BASE_URL, {
           auth: { token },
           autoConnect: true,
           reconnection: true,

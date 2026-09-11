@@ -43,10 +43,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { unreadCount } = useSocket();
 
   if (!user) return null;
-
-  const { unreadCount } = useSocket();
 
   const isActive = (path: string) => location.pathname === path;
 

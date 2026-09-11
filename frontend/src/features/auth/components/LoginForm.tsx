@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import axios from 'axios';
+import { apiClient } from '../../../lib/apiClient';
 import { setAccessToken } from '../../../lib/tokenStore';
 
 interface LoginFormProps {
@@ -20,11 +20,9 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onLoginSuccess }) => {
     setLoading(true);
 
     try {
-      const response = await axios.post('http://localhost:5000/api/auth/login', {
+      const response = await apiClient.post('/api/auth/login', {
         email,
         password
-      }, {
-        withCredentials: true
       });
 
       if (response.data?.success) {

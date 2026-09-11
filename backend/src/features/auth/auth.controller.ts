@@ -60,11 +60,13 @@ export class AuthController {
         status: 'SUCCESS'
       });
 
+      const isProduction = process.env.NODE_ENV === 'production';
+
       // Set refresh token in httpOnly secure cookie
       res.cookie('refreshToken', result.refreshToken, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'strict',
+        secure: isProduction,
+        sameSite: isProduction ? 'none' : 'lax',
         maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
       });
 
@@ -91,9 +93,10 @@ export class AuthController {
 
   public static async refresh(req: Request, res: Response, next: NextFunction) {
     try {
-      const refreshToken = getRefreshTokenFromCookie(req);
+      const isProduction = process.env.NODE_ENV === 'production';
+      const refreshToken = req.body?.refreshToken || getRefreshTokenFromCookie(req);
       if (!refreshToken) {
-        return res.status(401).json({ success: false, message: 'Refresh token cookie required' });
+        return res.status(401).json({ success: false, message: 'Refresh token cookie or body required' });
       }
 
       const result = await AuthService.refreshTokens(refreshToken);
@@ -101,8 +104,8 @@ export class AuthController {
       // Set new rotated refresh token in httpOnly cookie
       res.cookie('refreshToken', result.refreshToken, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'strict',
+        secure: isProduction,
+        sameSite: isProduction ? 'none' : 'lax',
         maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
       });
 
@@ -120,6 +123,7 @@ export class AuthController {
 
   public static async logout(req: Request, res: Response, next: NextFunction) {
     try {
+      const isProduction = process.env.NODE_ENV === 'production';
       const userId = req.user?.userId;
       if (userId) {
         await AuthService.logout(userId);
@@ -128,8 +132,8 @@ export class AuthController {
       // Clear the refresh token cookie
       res.clearCookie('refreshToken', {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'strict'
+        secure: isProduction,
+        sameSite: isProduction ? 'none' : 'lax'
       });
 
       res.status(200).json({

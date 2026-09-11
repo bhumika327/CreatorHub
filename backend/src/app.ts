@@ -24,10 +24,29 @@ dotenv.config();
 
 const app = express();
 
-app.use(cors({
-  origin: 'http://localhost:5173',
-  credentials: true
-}));
+const configuredOrigins = (process.env.FRONTEND_URL || 'http://localhost:5173')
+  .split(',')
+  .map((o) => o.trim());
+
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      // Allow requests with no origin (like mobile apps, curl, server-to-server)
+      if (!origin) return callback(null, true);
+
+      if (
+        configuredOrigins.includes(origin) ||
+        configuredOrigins.includes('*') ||
+        (process.env.NODE_ENV !== 'production' && /^http:\/\/localhost:\d+$/.test(origin))
+      ) {
+        return callback(null, true);
+      }
+
+      return callback(new Error(`Origin ${origin} not allowed by CORS`));
+    },
+    credentials: true,
+  })
+);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(requestLogger);
@@ -43,8 +62,8 @@ const swaggerOptions: swaggerJSDoc.Options = {
     },
     servers: [
       {
-        url: 'http://localhost:5000',
-        description: 'Development Server',
+        url: process.env.API_URL || `http://localhost:${process.env.PORT || 5000}`,
+        description: process.env.NODE_ENV === 'production' ? 'Production Server' : 'Development Server',
       },
     ],
     components: {

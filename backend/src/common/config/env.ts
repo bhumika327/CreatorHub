@@ -12,6 +12,8 @@ const envSchema = z.object({
   CLOUDINARY_API_KEY: z.string().min(1, "CLOUDINARY_API_KEY is required"),
   CLOUDINARY_API_SECRET: z.string().min(1, "CLOUDINARY_API_SECRET is required"),
   GEMINI_API_KEY: z.string().min(1, "GEMINI_API_KEY is required"),
+  FRONTEND_URL: z.string().default('http://localhost:5173'),
+  NODE_ENV: z.string().default('development'),
 });
 
 const result = envSchema.safeParse(process.env);
