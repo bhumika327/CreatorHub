@@ -24,26 +24,24 @@ dotenv.config();
 
 const app = express();
 
-const configuredOrigins = (process.env.FRONTEND_URL || 'http://localhost:5173')
-  .split(',')
-  .map((o) => o.trim());
+const allowedOrigins: (string | RegExp)[] = [
+  'https://creator-hub-bice-nine.vercel.app',
+  'http://localhost:5173',
+  /^https:\/\/creator-hub-.*-bhumika327s-projects\.vercel\.app$/,
+];
+
+if (process.env.FRONTEND_URL) {
+  process.env.FRONTEND_URL.split(',').forEach((origin) => {
+    const trimmed = origin.trim();
+    if (trimmed && trimmed !== '*' && !allowedOrigins.includes(trimmed)) {
+      allowedOrigins.push(trimmed);
+    }
+  });
+}
 
 app.use(
   cors({
-    origin: (origin, callback) => {
-      // Allow requests with no origin (like mobile apps, curl, server-to-server)
-      if (!origin) return callback(null, true);
-
-      if (
-        configuredOrigins.includes(origin) ||
-        configuredOrigins.includes('*') ||
-        (process.env.NODE_ENV !== 'production' && /^http:\/\/localhost:\d+$/.test(origin))
-      ) {
-        return callback(null, true);
-      }
-
-      return callback(new Error(`Origin ${origin} not allowed by CORS`));
-    },
+    origin: allowedOrigins,
     credentials: true,
   })
 );
